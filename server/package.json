@@ -1,12 +1,21 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "FixIT marketplace REST API",
+  "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "node --test tests/**/*.test.js"
+    "test": "node --test tests/**/*.test.js",
+    "test:integration": "node scripts/smoke.js",
+    "test:integration:paymongo": "node scripts/smoke.js --paymongo",
+    "test:paymongo": "node scripts/check-paymongo.js",
+    "db:check": "node scripts/check-db.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "node -r dotenv/config prisma/seed.js",
+    "db:seed:demo": "node scripts/seed-demo-technicians.js",
+    "test:profiles": "node scripts/check-profiles.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

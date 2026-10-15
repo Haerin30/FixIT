@@ -11,7 +11,8 @@ const TOKEN_EXPIRY = "1h";
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
     try {
-        const { fname, lname, email, password } = req.body;
+        const { fname, lname, email, password, role = "Customer" } = req.body;
+        if (!["Customer", "Technician"].includes(role)) return res.status(400).json({ success: false, message: "Choose Customer or Technician." });
 
         // 1. Validate required fields.
         if (
@@ -71,9 +72,9 @@ router.post("/register", async (req, res) => {
         // 3. Hash the password before saving it.
         const passwordHash = await bcrypt.hash(password, 12);
 
-        // 4. Always assign the Customer role on public registration.
+        // Public registration permits customers and technicians only.
         const customerRole = await prisma.role.findUnique({
-            where: { name: "Customer" },
+            where: { name: role },
         });
 
         if (!customerRole) {
@@ -91,6 +92,7 @@ router.post("/register", async (req, res) => {
                 email: normalizedEmail,
                 passwordHash,
                 roleId: customerRole.id,
+                ...(role === "Technician" ? { technicianProfile: { create: { isAvailable: false } } } : {}),
             },
             select: {
                 id: true,

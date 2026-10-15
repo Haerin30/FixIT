@@ -42,8 +42,9 @@ const express = require("express");
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-const JWT_SECRET   = process.env.JWT_SECRET;
-const LIVE_BASE    = "http://localhost:5000";
+const JWT_SECRET = process.env.JWT_SECRET || 'isolated-profile-test-secret';
+process.env.JWT_SECRET = JWT_SECRET;
+
 const TECH_ROLE    = "Technician";
 const CUST_ROLE    = "Customer";
 
@@ -236,7 +237,7 @@ test("Scenario A: PUT /profile — Technician with no profile → 404", async ()
 
 test("Scenario B: PUT /profile — No Authorization header → 401", async () => {
     const { status, body } = await httpRequest({
-        baseUrl: LIVE_BASE,
+        baseUrl: `http://127.0.0.1:${await waitForPort()}`,
         method:  "PUT",
         path:    "/api/technicians/profile",
         // deliberately no Authorization header

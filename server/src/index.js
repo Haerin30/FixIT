@@ -21,11 +21,15 @@ app.use(
     })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '32kb' }));
+app.disable('x-powered-by');
+app.use('/api/payments', require('./routes/payments'));
+
 
 app.use("/api/technicians", technicianRoutes);
 
 app.use("/api/auth", authRoutes);
+
 
 app.get("/api/test-db", async (req, res) => {
     try {
@@ -81,6 +85,14 @@ app.get(
     }
 );
 
-app.listen(PORT, () => {
+app.use('/api', require('./routes/marketplace').router);
+
+app.use((error, req, res, next) => {
+    if (res.headersSent) return next(error);
+    const status = error.status || (['P2002', 'P2034'].includes(error.code) ? 409 : error.code === 'P2003' ? 400 : 500);
+    res.status(status).json({ success: false, message: error.status || status < 500 ? (error.code ? 'Record conflict. Refresh and retry.' : error.message) : 'Service unavailable. Please retry shortly.' });
+});
+if (require.main === module) app.listen(PORT, () => {
     console.log(`FixIT API running on port ${PORT}`);
 });
+module.exports = app;

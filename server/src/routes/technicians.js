@@ -1,6 +1,7 @@
 
 const express = require("express");
 const prisma = require("../lib/prisma");
+const { readProfile, readReviews, eligibleReview } = require("../lib/technician-profile");
 
 const router = express.Router();
 
@@ -25,6 +26,10 @@ const {
 function validateProfileBody(body, requireAll) {
     const errors = [];
     const data = {};
+    if (body.isAvailable !== undefined) {
+        if (typeof body.isAvailable !== 'boolean') errors.push('isAvailable must be a boolean.');
+        else data.isAvailable = body.isAvailable;
+    }
 
     // bio (optional string, ≤ 5 000 chars)
     if (body.bio !== undefined) {
@@ -243,6 +248,7 @@ router.post(
                         bio: data.bio ?? null,
                         yearsExperience: data.yearsExperience,
                         serviceDescription: data.serviceDescription ?? null,
+                        isAvailable: data.isAvailable ?? true,
                         specialties: {
                             create: data.categoryIds.map((catId) => ({
                                 repairCategoryId: catId,
@@ -392,6 +398,7 @@ router.put(
 
             // Build the scalar update payload (only changed fields).
             const profileUpdate = {};
+            if (data.isAvailable !== undefined) profileUpdate.isAvailable = data.isAvailable;
             if (data.bio !== undefined) profileUpdate.bio = data.bio;
             if (data.yearsExperience !== undefined)
                 profileUpdate.yearsExperience = data.yearsExperience;
@@ -614,6 +621,7 @@ router.get("/", async (req, res) => {
             ? await prisma.review.groupBy({
                 by: ["technicianProfileId"],
                 where: {
+                    ...eligibleReview,
                     technicianProfileId: {
                         in: profileIds,
                     },
@@ -639,7 +647,10 @@ router.get("/", async (req, res) => {
             ])
         );
 
+        const completedGroups = profileIds.length ? await prisma.repairRequest.groupBy({ by: ['technicianProfileId'], where: { technicianProfileId: { in: profileIds }, status: 'COMPLETED', outcome: 'SUCCESSFUL' }, _count: { _all: true } }) : [];
+        const completedById = new Map(completedGroups.map(g => [g.technicianProfileId, g._count._all]));
         const technicians = profiles.map((profile) => ({
+            completedRepairs: completedById.get(profile.id) || 0,
             ...profile,
             specialties: profile.specialties.map((item) => ({
                 name: item.repairCategory.name,
@@ -677,140 +688,22 @@ router.get("/", async (req, res) => {
     }
 });
 
-// GET /api/technicians/:id
-// View one available technician's public profile.
-router.get("/:id", async (req, res) => {
+// Public detail remains visible when a technician pauses availability.
+router.get('/:id/reviews', async (req, res, next) => {
     try {
-        const { id } = req.params;
-
-        if (!UUID_PATTERN.test(id)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid technician profile ID.",
-            });
-        }
-
-        const profile = await prisma.technicianProfile.findFirst({
-            where: {
-                id,
-                isAvailable: true,
-                user: {
-                    isActive: true,
-                },
-            },
-            select: {
-                id: true,
-                bio: true,
-                yearsExperience: true,
-                serviceDescription: true,
-                isAvailable: true,
-                user: {
-                    select: {
-                        fname: true,
-                        lname: true,
-                    },
-                },
-                specialties: {
-                    select: {
-                        yearsExperience: true,
-                        repairCategory: {
-                            select: {
-                                id: true,
-                                name: true,
-                            },
-                        },
-                    },
-                },
-                serviceAreas: {
-                    select: {
-                        serviceArea: {
-                            select: {
-                                city: true,
-                                province: true,
-                            },
-                        },
-                    },
-                },
-            },
-        });
-
-        if (!profile) {
-            return res.status(404).json({
-                success: false,
-                message: "Technician not found.",
-            });
-        }
-
-        const [rating, reviews] = await Promise.all([
-            prisma.review.aggregate({
-                where: {
-                    technicianProfileId: profile.id,
-                },
-                _avg: {
-                    rating: true,
-                },
-                _count: {
-                    _all: true,
-                },
-            }),
-            prisma.review.findMany({
-                where: {
-                    technicianProfileId: profile.id,
-                },
-                orderBy: {
-                    createdAt: "desc",
-                },
-                take: 10,
-                select: {
-                    rating: true,
-                    comment: true,
-                    createdAt: true,
-                    customer: {
-                        select: {
-                            fname: true,
-                            lname: true,
-                        },
-                    },
-                },
-            }),
-        ]);
-
-        return res.json({
-            success: true,
-            data: {
-                technician: {
-                    ...profile,
-                    specialties: profile.specialties.map((item) => ({
-                        name: item.repairCategory.name,
-                        categoryId: item.repairCategory.id,
-                        yearsExperience: item.yearsExperience,
-                    })),
-                    serviceAreas: profile.serviceAreas.map(
-                        (item) => item.serviceArea
-                    ),
-                    rating: {
-                        averageRating: rating._avg.rating
-                            ? Number(rating._avg.rating.toFixed(2))
-                            : null,
-                        reviewCount: rating._count._all,
-                    },
-                    reviews: reviews.map((review) => ({
-                        rating: review.rating,
-                        comment: review.comment,
-                        createdAt: review.createdAt,
-                        customerName: `${review.customer.fname} ${review.customer.lname}`,
-                    })),
-                },
-            },
-        });
-    } catch (error) {
-        console.error("Technician details error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Could not retrieve technician details.",
-        });
-    }
+        if (!UUID_PATTERN.test(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid technician profile ID.' });
+        const exists = await prisma.technicianProfile.findFirst({ where: { id: req.params.id, user: { isActive: true } }, select: { id: true } });
+        if (!exists) return res.status(404).json({ success: false, message: 'Technician not found.' });
+        const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
+        res.json({ data: await readReviews(req.params.id, page) });
+    } catch (error) { next(error); }
 });
-
+router.get('/:id', async (req, res, next) => {
+    try {
+        if (!UUID_PATTERN.test(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid technician profile ID.' });
+        const technician = await readProfile({ id: req.params.id });
+        if (!technician) return res.status(404).json({ success: false, message: 'Technician not found.' });
+        res.json({ success: true, data: { technician } });
+    } catch (error) { next(error); }
+});
 module.exports = router;
