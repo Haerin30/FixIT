@@ -1,5 +1,5 @@
 
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 
 const express = require("express");
 const cors = require("cors");
@@ -23,6 +23,14 @@ app.use(
 
 app.use(express.json({ limit: '32kb' }));
 app.disable('x-powered-by');
+app.use((req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Referrer-Policy', 'same-origin');
+    if (['POST','PUT','PATCH'].includes(req.method) && req.body === undefined) req.body = {};
+    if (['POST','PUT','PATCH'].includes(req.method) && (!req.body || typeof req.body !== 'object' || Array.isArray(req.body))) return res.status(400).json({ success: false, message: 'Send a JSON object as the request body.' });
+    next();
+});
+app.use('/api/admin', require('./routes/admin'));
 app.use('/api/payments', require('./routes/payments'));
 
 
@@ -31,7 +39,7 @@ app.use("/api/technicians", technicianRoutes);
 app.use("/api/auth", authRoutes);
 
 
-app.get("/api/test-db", async (req, res) => {
+app.get("/api/test-db", authenticateToken, requireRole("Administrator"), async (req, res) => {
     try {
         const [roles, categories] = await Promise.all([
             prisma.role.findMany(),
@@ -87,11 +95,15 @@ app.get(
 
 app.use('/api', require('./routes/marketplace').router);
 
+app.use((req, res) => res.status(404).json({ success: false, message: 'API endpoint not found.' }));
+
 app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
+    if (error.type === 'entity.parse.failed') return res.status(400).json({ success: false, message: 'Malformed JSON. Send a valid JSON object.' });
     const status = error.status || (['P2002', 'P2034'].includes(error.code) ? 409 : error.code === 'P2003' ? 400 : 500);
     res.status(status).json({ success: false, message: error.status || status < 500 ? (error.code ? 'Record conflict. Refresh and retry.' : error.message) : 'Service unavailable. Please retry shortly.' });
 });
+if (require.main === module && (!process.env.JWT_SECRET || !process.env.DATABASE_URL)) throw new Error('Configure DATABASE_URL and JWT_SECRET before starting the API.');
 if (require.main === module) app.listen(PORT, () => {
     console.log(`FixIT API running on port ${PORT}`);
 });

@@ -7,11 +7,13 @@ const prisma = require("../lib/prisma");
 const router = express.Router();
 
 const TOKEN_EXPIRY = "1h";
+const { rateLimit } = require('../middleware/rate-limit');
+router.use(rateLimit({ limit: 30 }));
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
     try {
-        const { fname, lname, email, password, role = "Customer" } = req.body;
+        const { fname, lname, email, password, role = "Customer" } = req.body || {};
         if (!["Customer", "Technician"].includes(role)) return res.status(400).json({ success: false, message: "Choose Customer or Technician." });
 
         // 1. Validate required fields.
@@ -137,7 +139,7 @@ router.post("/register", async (req, res) => {
             });
         }
 
-        console.error("Registration error:", error);
+        console.error("Registration failed:", error.code || "INTERNAL_ERROR");
 
         return res.status(500).json({
             success: false,
@@ -217,7 +219,7 @@ router.post("/login", async (req, res) => {
             },
         });
     } catch (error) {
-        console.error("Login error:", error);
+        console.error("Login failed:", error.code || "INTERNAL_ERROR");
 
         return res.status(500).json({
             success: false,

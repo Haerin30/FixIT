@@ -1,6 +1,6 @@
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 function transition(repair, actor, action, cost) {
-  const customer = actor.id === repair.customerId;
+  const customer = actor.role === 'Customer' && actor.id === repair.customerId;
   const technician = actor.role === 'Technician' && actor.id === repair.technicianProfile?.userId;
   if (customer && action === 'cancel' && ['PENDING', 'ACCEPTED'].includes(repair.status)) return { status: 'CANCELLED' };
   if (technician) {

@@ -1,0 +1,56 @@
+body { overflow-wrap: anywhere; }
+main, .repair-layout > *, .admin-dashboard, .technician-profile { min-width: 0; }
+.chat-panel, .payment-panel { border: 1px solid #dce6df; border-radius: 14px; padding: 22px; margin-top: 26px; }
+.chat-panel .section-head, .payment-panel .section-head { margin-top: 0; margin-bottom: 10px; }
+.chat-panel h3, .payment-panel h3 { margin: 0; }
+.chat-messages { max-height: 390px; min-height: 180px; overflow-y: auto; overscroll-behavior: contain; padding: 18px 8px; display: flex; flex-direction: column; gap: 12px; margin-top: 18px; border-top: 1px solid #e3ebe1; border-bottom: 1px solid #e3ebe1; }
+.chat-bubble { background: #f0f3ed; border-radius: 13px 13px 13px 3px; padding: 13px 16px; width: fit-content; max-width: 87%; align-self: flex-start; }
+.chat-bubble.mine { background: #e1f0e5; border-radius: 13px 13px 3px 13px; align-self: flex-end; }
+.chat-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; font-size: .7rem; color: #58725d; }
+.chat-meta time { font-size: .64rem; }
+.chat-bubble p { margin: 6px 0 0; white-space: pre-wrap; color: #254d3c; font-size: .9rem; }
+.chat-empty { text-align: center; margin: auto; color: #65785d; padding: 20px; }
+.chat-empty h4 { margin: 0; }
+.chat-empty p { font-size: .85rem; }
+.chat-compose { margin: 18px 0 10px; }
+.chat-compose textarea { min-height: 80px; }
+.chat-compose-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.payment-panel { background: linear-gradient(120deg,#f4f8ef,#fff); }
+.payment-panel .actions { margin-top: 22px; }
+.payment-amount { display: block; font-size: 2.2rem; letter-spacing: -.05em; }
+.payment-panel > p { font-size: .9rem; }
+.dashboard-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 22px; }
+.dashboard-tabs button { text-transform: capitalize; }
+.dashboard-tabs button[aria-current="page"] { color: white; background: #147c5c; border-color: #147c5c; }
+.table-scroll { width: 100%; max-width: 100%; overflow-x: auto; background: white; border: 1px solid #dce6df; border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; text-align: left; font-size: .85rem; }
+th { color: #55715e; background: #eff4eb; font-weight: 600; font-size: .75rem; letter-spacing: .03em; }
+th, td { padding: 18px; vertical-align: top; border-bottom: 1px solid #e5ece0; }
+td { min-width: 140px; }
+td small { display: block; color: #627666; font-size: .7rem; margin-top: 4px; }
+td button { min-height: 36px; font-size: .72rem; padding: 7px 10px; }
+.pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; padding: 20px 0; font-size: .8rem; color: #647560; }
+.admin-inspection { max-width: none; margin: 0 0 20px; }
+.admin-dashboard > .section-head { align-items: flex-start; }
+.admin-dashboard h1 { font-size: clamp(1.8rem,3vw,2.8rem); }
+.admin-dashboard > .profile-stats strong { font-size: 1.7rem; }
+.status-explainer { background: #f1f6ed; padding: 13px 16px; border-radius: 10px; font-size: .85rem; color: #456345; }
+.location-help { color: #61785f; margin: -10px 0 24px; font-size: .8rem; }
+.location-help button { min-height: 30px; font-size: .8rem; }
+.repair-item { transition: border-color .15s,background .15s; }
+.repair-item h3 { font-size: 1rem; }
+.repair-item .badge { white-space: normal; text-align: left; }
+.repair-detail h2 { overflow-wrap: anywhere; }
+fieldset:disabled { opacity: .7; }
+@media(max-width:600px) {
+  .chat-panel, .payment-panel { padding: 16px; }
+  .chat-bubble { max-width: 96%; }
+  .chat-meta { gap: 7px; }
+  .chat-compose-footer { flex-wrap: wrap; }
+  .chat-compose-footer button { flex: 1; }
+  .admin-dashboard > .section-head { flex-direction: column; }
+  th, td { padding: 13px; }
+  .repair-detail dl { grid-template-columns: 1fr; gap: 3px; }
+  .repair-detail dd { margin-bottom: 12px; }
+  .repair-detail .actions button { flex: 1 1 auto; }
+}
