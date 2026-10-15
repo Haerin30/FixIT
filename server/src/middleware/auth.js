@@ -20,6 +20,8 @@ async function authenticateToken(req, res, next) {
             algorithms: ["HS256"],
         });
 
+        if (typeof decoded.sub !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decoded.sub)) return res.status(401).json({ success: false, message: 'Invalid authentication subject.' });
+
         // Fetch the current account and role from the database.
         const user = await prisma.user.findUnique({
             where: { id: decoded.sub },
@@ -66,7 +68,7 @@ async function authenticateToken(req, res, next) {
             });
         }
 
-        console.error("Authentication error:", error);
+        console.error("Authentication failed:", error.code || "INTERNAL_ERROR");
 
         return res.status(500).json({
             success: false,

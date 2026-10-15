@@ -1,0 +1,28 @@
+name: FixIT quality checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Used for schema parsing/client generation only. No database is contacted.
+      DATABASE_URL: postgresql://localhost:5432/fixit_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+      - run: npm ci --prefix server
+      - run: npm ci --prefix client
+      - run: npm test
+      - run: npm --prefix client test
+      - run: npm run lint
+      - run: npm run build
+      - run: npx prisma validate
+        working-directory: server

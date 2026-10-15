@@ -36,9 +36,9 @@ Three available demo technicians can be added with `npm run db:seed:demo` from `
 3. Technician accepts or rejects the request. Either participant can propose a future schedule. The other participant must confirm it; a person cannot confirm their own proposal. Confirming a replacement cancels the other active schedules.
 4. Technician starts a repair after a schedule is confirmed. Mark unsuccessful to close it with a zero fee, or submit a successful outcome and final PHP amount for customer confirmation.
 5. Customer confirms success before payment is enabled. Use **Open test checkout**, complete PayMongo's hosted test flow, return to **My repairs**, select the repair, and use **Verify payment**. Return URL parameters never mark a repair paid.
-6. Customer can leave one review per successfully completed repair after confirming the outcome. Both participants can exchange messages and refresh them manually.
+6. Customer can leave one review per successfully completed repair after confirming the outcome. Both participants can exchange messages, which update automatically about every four seconds.
 
-Customers can cancel requests before work starts. Administrator accounts are not available through public signup. An existing trusted Administrator account sees the read-only dashboard; role assignment must be performed by a trusted database operator. No default administrator password is created.
+Customers can cancel requests before work starts. Administrator accounts are not available through public signup. An existing trusted Administrator account sees the administrator dashboard; role assignment must be performed by a trusted database operator. No default administrator password is created.
 
 ## Integrations
 
@@ -73,10 +73,10 @@ JSON responses use `{ data: ... }` for successful marketplace operations and `{ 
 
 ## Verification
 
-- `npm test`: eleven isolated backend authorization and repair-state tests, no live server/database required.
-- `npm run test:integration`: real PostgreSQL/HTTP workflow tests. Creates random `example.invalid` users and repairs, then removes only the test records identified during that run. Does not reset the database. PayMongo responses are mocked in-process for payment amount/session reuse/paid verification tests; the PSGC call is live.
+- `npm test`: nineteen isolated backend authorization and repair-state tests, no live server/database required.
+- `npm run test:integration`: real PostgreSQL/HTTP workflow tests. Creates random `example.invalid` users and repairs, then removes only the test records identified during that run. Does not reset the database. PayMongo paid-state simulations run only in the isolated in-memory test suite; the PostgreSQL integration run never inserts simulated PAID payments. The PSGC call is live.
 - From `server/`, `npm run test:paymongo`: creates, retrieves, and expires a real PHP 100 **test** checkout using your configured key. Does not make a payment or print credentials/checkout URLs.
-- From `server/`, `npm run test:integration:paymongo`: runs the entire repair lifecycle, creates a real hosted test checkout through the application payment endpoint, verifies its persisted pending status, expires it, then runs the mocked paid-payment checks. No payment is made.
+- From `server/`, `npm run test:integration:paymongo`: runs the entire repair lifecycle, creates a real hosted test checkout through the application payment endpoint, verifies its persisted pending status, expires it, then continues the remaining real database workflow checks. No payment is made.
 - `npm run db:check`: prints configuration presence and checks roles without printing credentials.
 - `npm run lint`, `npm run build`: client static analysis and production build.
 - From `server/`, `npx prisma validate` and `npx prisma migrate status`: schema validation and read-only migration check.
@@ -86,10 +86,10 @@ Verified in this session: PostgreSQL is connected; the existing migration is app
 ## Remaining limits
 
 - A completed hosted payment has not been exercised in a browser. Test checkout creation/retrieval is verified; paid/unpaid/mismatched amounts are verified against mocked provider responses.
-- Payment reconciliation uses **Verify payment**; no PayMongo webhook or background reconciliation worker is configured.
+- Payment reconciliation uses automatic polling in the payment panel and **Verify payment**; no PayMongo webhook or background reconciliation worker is configured.
 - Browser tooling was unavailable in this environment, so visual/mobile layout and browser interaction tests remain manual.
-- Messaging refreshes manually; lists are capped for this initial release. No attachments or push notifications.
-- Admin dashboard is read-only. Password reset, email verification, abuse/rate controls, disputes, and production payment rollout remain future work.
+- Messaging polls automatically every four seconds; conversations show the latest 100 messages. No attachments or push notifications.
+- Admin management supports audited account activation/deactivation; payments remain read-only. Password reset, email verification, abuse/rate controls, disputes, and production payment rollout remain future work.
 - No deployment or Git push was performed. All work remains on the local feature branch.
 
 ## Profile and review UX update
@@ -102,4 +102,16 @@ GET /profile now returns the same normalized profile data as GET /technicians/:i
 
 Profile details refresh after saves, reviews, profile navigation, and browser focus. Marketplace cards refresh after reviews and when returning to the marketplace. Styling includes responsive statistic cards, review panels, SVG icons, fractional stars, focus indicators, skip navigation, loading states, accessible feedback, and reduced-motion support.
 
-Validation: npm --prefix server test runs 11 isolated backend tests, including HTTP rating/profile/review authorization checks. npm --prefix client test verifies rendered public/owner profiles, empty ratings, feedback escaping, and the separate editor. npm --prefix server run test:profiles runs read-only HTTP/PostgreSQL comparisons against existing accounts; it creates, updates, and deletes no records. Client lint and production build also pass. Browser visual/interaction verification remains manual because no browser surface is available.
+Validation: npm --prefix server test runs 19 isolated backend tests, including HTTP rating/profile/review authorization checks. npm --prefix client test verifies rendered public/owner profiles, empty ratings, feedback escaping, and the separate editor. npm --prefix server run test:profiles runs read-only HTTP/PostgreSQL comparisons against existing accounts; it creates, updates, and deletes no records. Client lint and production build also pass. Browser visual/interaction verification remains manual because no browser surface is available.
+
+## Final QA release
+
+See [DEMO.md](DEMO.md) for the full customer/technician/admin walkthrough, safe admin provisioning, test commands, and manual hosted-payment requirements. See [FINAL_QA_REPORT.md](FINAL_QA_REPORT.md) for the final evidence and remaining limitations.
+
+Payment endpoints now include POST /payments/:id/cancel. PayMongo-confirmed expired sessions can be safely replaced; active sessions are reused. Each session creation/replacement/cancellation is preserved in AuditLog. Verification checks session ID, repair reference, PHP amount, test mode and payment intent/payment IDs. No redirect URL or admin mutation can mark a payment paid.
+
+Admin endpoints (Administrator only): GET /admin/users?q=&role=&active=&page=, PATCH /admin/users/:id/active with a boolean isActive, GET /admin/technicians/:id, GET /admin/repairs?status=&page=, and GET /admin/payments?status=&page=. Mutations preserve history and create audit events; self-deactivation and administrator moderation are rejected.
+
+Booking requests support an optional UUID requestId; messages support an optional UUID messageId. Retries with the same identity and unchanged payload return the original record rather than creating duplicates. The frontend retains retry identifiers after connection failures.
+
+Authentication endpoints are throttled to 30 requests per IP per 15 minutes in the single-process deployment. JWT subjects and current active account roles are validated server-side. Request bodies are limited to 32 KiB, malformed JSON is handled without echoing its contents, and the database diagnostic endpoint requires an administrator.

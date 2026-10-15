@@ -516,7 +516,7 @@ router.get("/", async (req, res) => {
                 ? req.query.province.trim()
                 : "";
 
-        const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+        const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
         const requestedLimit =
             Number.parseInt(req.query.limit, 10) || 10;
         const limit = Math.min(50, Math.max(1, requestedLimit));
