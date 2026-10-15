@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RepairStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  IN_PROGRESS
+  AWAITING_CUSTOMER_CONFIRMATION
+  COMPLETED
+  FAILED
+}
+
+enum RepairOutcome {
+  SUCCESSFUL
+  UNSUCCESSFUL
+}
+
+enum ScheduleStatus {
+  PROPOSED
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Role {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  users     User[]
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  roleId       Int
+  fname        String
+  lname        String
+  email        String   @unique
+  passwordHash String
+  phone        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  role              Role               @relation(fields: [roleId], references: [id])
+  technicianProfile TechnicianProfile?
+  customerRequests  RepairRequest[]    @relation("CustomerRequests")
+  schedulesProposed RepairSchedule[]   @relation("ScheduleProposer")
+  reviewsWritten    Review[]           @relation("CustomerReviews")
+  messages          Message[]
+  auditLogs         AuditLog[]
+
+  @@index([roleId])
+  @@index([lname, fname])
+}
+
+model TechnicianProfile {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @unique @db.Uuid
+  bio                String?  @db.Text
+  yearsExperience    Int      @default(0)
+  serviceDescription String?  @db.Text
+  isAvailable        Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialties    TechnicianSpecialty[]
+  serviceAreas   TechnicianServiceArea[]
+  repairRequests RepairRequest[]         @relation("AssignedTechnician")
+  reviews        Review[]                @relation("TechnicianReviews")
+
+  @@index([isAvailable])
+}
+
+model RepairCategory {
+  id             Int                   @id @default(autoincrement())
+  name           String                @unique
+  description    String?
+  specialties    TechnicianSpecialty[]
+  repairRequests RepairRequest[]
+}
+
+model TechnicianSpecialty {
+  id                  String @id @default(uuid()) @db.Uuid
+  technicianProfileId String @db.Uuid
+  repairCategoryId    Int
+  yearsExperience     Int    @default(0)
+
+  technicianProfile TechnicianProfile @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+  repairCategory    RepairCategory    @relation(fields: [repairCategoryId], references: [id])
+
+  @@unique([technicianProfileId, repairCategoryId])
+  @@index([repairCategoryId])
+}
+
+model ServiceArea {
+  id        Int      @id @default(autoincrement())
+  city      String
+  province  String
+  createdAt DateTime @default(now())
+
+  technicians TechnicianServiceArea[]
+
+  @@unique([city, province])
+}
+
+model TechnicianServiceArea {
+  id                  String @id @default(uuid()) @db.Uuid
+  technicianProfileId String @db.Uuid
+  serviceAreaId       Int
+
+  technicianProfile TechnicianProfile @relation(fields: [technicianProfileId], references: [id], onDelete: Cascade)
+  serviceArea       ServiceArea       @relation(fields: [serviceAreaId], references: [id])
+
+  @@unique([technicianProfileId, serviceAreaId])
+  @@index([serviceAreaId])
+}
+
+model RepairRequest {
+  id                  String         @id @default(uuid()) @db.Uuid
+  customerId          String         @db.Uuid
+  technicianProfileId String?        @db.Uuid
+  repairCategoryId    Int
+  title               String
+  description         String         @db.Text
+  deviceType          String
+  deviceModel         String?
+  serviceAddress      String
+  status              RepairStatus   @default(PENDING)
+  outcome             RepairOutcome?
+  estimatedCost       Decimal?       @db.Decimal(10, 2)
+  finalCost           Decimal?       @db.Decimal(10, 2)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  customer          User               @relation("CustomerRequests", fields: [customerId], references: [id])
+  technicianProfile TechnicianProfile? @relation("AssignedTechnician", fields: [technicianProfileId], references: [id])
+  repairCategory    RepairCategory     @relation(fields: [repairCategoryId], references: [id])
+  schedules         RepairSchedule[]
+  payment           Payment?
+  review            Review?
+  conversation      Conversation?
+
+  @@index([customerId, createdAt])
+  @@index([technicianProfileId, status])
+  @@index([status, createdAt])
+  @@index([repairCategoryId])
+}
+
+model RepairSchedule {
+  id              String         @id @default(uuid()) @db.Uuid
+  repairRequestId String         @db.Uuid
+  proposedById    String         @db.Uuid
+  proposedStart   DateTime
+  proposedEnd     DateTime
+  status          ScheduleStatus @default(PROPOSED)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  repairRequest RepairRequest @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  proposedBy    User          @relation("ScheduleProposer", fields: [proposedById], references: [id])
+
+  @@index([repairRequestId, status])
+}
+
+model Payment {
+  id                 String        @id @default(uuid()) @db.Uuid
+  repairRequestId    String        @unique @db.Uuid
+  amount             Decimal       @db.Decimal(10, 2)
+  currency           String        @default("PHP")
+  status             PaymentStatus @default(PENDING)
+  provider           String        @default("PAYMONGO")
+  providerCheckoutId String?       @unique
+  providerPaymentId  String?       @unique
+  providerEventId    String?       @unique
+  paidAt             DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  repairRequest RepairRequest @relation(fields: [repairRequestId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model Review {
+  id                  String   @id @default(uuid()) @db.Uuid
+  repairRequestId     String   @unique @db.Uuid
+  customerId          String   @db.Uuid
+  technicianProfileId String   @db.Uuid
+  rating              Int
+  comment             String?  @db.Text
+  createdAt           DateTime @default(now())
+
+  repairRequest     RepairRequest     @relation(fields: [repairRequestId], references: [id])
+  customer          User              @relation("CustomerReviews", fields: [customerId], references: [id])
+  technicianProfile TechnicianProfile @relation("TechnicianReviews", fields: [technicianProfileId], references: [id])
+
+  @@index([technicianProfileId, createdAt])
+}
+
+model Conversation {
+  id              String   @id @default(uuid()) @db.Uuid
+  repairRequestId String   @unique @db.Uuid
+  createdAt       DateTime @default(now())
+
+  repairRequest RepairRequest @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  messages      Message[]
+}
+
+model Message {
+  id             String    @id @default(uuid()) @db.Uuid
+  conversationId String    @db.Uuid
+  senderId       String    @db.Uuid
+  body           String    @db.Text
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  actorId    String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+}
