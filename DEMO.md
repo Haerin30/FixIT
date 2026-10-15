@@ -48,8 +48,8 @@ This changes the existing account's role, records an operator audit event, and d
 2. Customer: register or sign in, filter the marketplace by specialization/city, and open the technician's profile. Confirm real statistics and the empty review state for a new technician.
 3. Customer: submit a repair request with a matching category, device details, problem description, and service address.
 4. Technician: open **My repairs** and accept the request. Repairs update automatically about every ten seconds, or use Refresh.
-5. Either participant: propose a future start/end. The other participant confirms it. A participant cannot confirm their own proposal.
-6. Both: send messages in the repair conversation. Messages persist in PostgreSQL and update automatically about every four seconds. Disconnect/reconnect to see the offline state and automatic retry; drafts remain in the form.
+5. Technician: propose a future start/end in Philippine time. Customer confirms or rejects it. Alternatively, the technician explicitly delegates scheduling to the customer; the customer proposes and the technician responds. A participant cannot confirm their own proposal.
+6. Both: open **Messages**, or use **Message Technician/Customer** on the repair card, and send messages in the selected repair conversation. Messages persist in PostgreSQL and update automatically about every four seconds. Disconnect/reconnect to see the offline state and automatic retry; drafts remain in the form.
 7. Technician: start the repair after a schedule is confirmed, then submit a successful result and final fee.
 8. Customer: inspect the result and confirm the successful repair and fee. This enables payment. For a separate unsuccessful demo, mark a different repair unsuccessful: its fee becomes zero and checkout/reviews remain unavailable.
 9. Customer: select **Open test checkout**. Use only PayMongo's official sandbox test details. The backend calculates the amount from the confirmed repair.
@@ -102,3 +102,7 @@ The profile check is read-only. Integration checks generate uniquely identified 
 - Email verification, password reset, refunds/disputes, and production payment rollout are outside this classroom release.
 - Desktop/mobile browser interaction, keyboard walkthrough, and hosted payment must be manually verified if browser automation is unavailable.
 - GitHub Actions performs isolated lint/build/test checks without production credentials; it does not run Supabase/PayMongo integration tests.
+
+## Account, inbox and price-correction update
+
+See [ACCOUNT_MESSAGING_SCHEDULING_UPDATE.md](ACCOUNT_MESSAGING_SCHEDULING_UPDATE.md) for the new account dropdown, separate personal/public profiles, dedicated Messages tab, technician-controlled scheduling delegation, explicit Philippine times, and revision-bound final-price correction walkthrough. The new additive migration must be applied before running this branch. Any existing checkout/payment currently locks price corrections, pending clarification of the truncated business rule.

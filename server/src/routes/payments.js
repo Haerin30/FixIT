@@ -10,9 +10,10 @@ function eligible(r, user) {
 }
 async function locked(req, fn) {
   return prisma.$transaction(async db => {
+    const initial = await owned(req, db);
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${initial.id}))`;
     const r = await owned(req, db);
     eligible(r, req.user);
-    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${r.id}))`;
     return fn(db, r);
   }, { timeout: 45000, maxWait: 10000 });
 }

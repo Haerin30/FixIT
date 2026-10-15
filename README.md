@@ -4,7 +4,7 @@ React 19 / Vite client, Express 5 REST API, Prisma 6, and PostgreSQL. Work is on
 
 ## Run locally
 
-Requires Node.js 22.12+ (verified on Node 24), npm, and PostgreSQL reachable through `DATABASE_URL`.
+Requires Node.js 22.13+ (verified on Node 24), npm, and PostgreSQL reachable through `DATABASE_URL`.
 
 1. Install dependencies: `npm --prefix server install` and `npm --prefix client install`.
 2. For a new checkout, copy `server/.env.example` to `server/.env`, then enter your configuration. Do not overwrite an existing `.env`.
@@ -33,7 +33,7 @@ Three available demo technicians can be added with `npm run db:seed:demo` from `
 
 1. Join as a technician. New technician accounts are unavailable until their profile is published. Set biography, specialties, experience, city/province, and check **Available for requests**.
 2. Sign out and join as a customer (or use a separate browser session). Browse/filter technicians and open a profile to request repair. A request must match one of that technician's specialties.
-3. Technician accepts or rejects the request. Either participant can propose a future schedule. The other participant must confirm it; a person cannot confirm their own proposal. Confirming a replacement cancels the other active schedules.
+3. Technician accepts or rejects the request. The technician proposes a future schedule unless they explicitly delegate that repair to the customer. The other participant must confirm it; a person cannot confirm their own proposal. Confirming a replacement cancels the other active schedules.
 4. Technician starts a repair after a schedule is confirmed. Mark unsuccessful to close it with a zero fee, or submit a successful outcome and final PHP amount for customer confirmation.
 5. Customer confirms success before payment is enabled. Use **Open test checkout**, complete PayMongo's hosted test flow, return to **My repairs**, select the repair, and use **Verify payment**. Return URL parameters never mark a repair paid.
 6. Customer can leave one review per successfully completed repair after confirming the outcome. Both participants can exchange messages, which update automatically about every four seconds.
@@ -62,8 +62,8 @@ JSON responses use `{ data: ... }` for successful marketplace operations and `{ 
 | `POST /technicians/profile`, `PUT /technicians/profile` | Technician only; profile fields, `categoryIds`, `serviceAreas:[{city,province}]`, `isAvailable`. |
 | `GET /repairs` | Own customer/assigned-technician requests, newest 100. |
 | `POST /repairs` | Customer; `technicianProfileId,repairCategoryId,title,description,deviceType,deviceModel?,serviceAddress`. |
-| `POST /repairs/:id/action` | Participant; `action`: `accept,reject,cancel,start,finish,failed,confirm`; successful finish also requires numeric `finalCost`. |
-| `POST /repairs/:id/schedules` | Participant; ISO `proposedStart,proposedEnd`. |
+| `POST /repairs/:id/action` | Participant; `action`: `accept,reject,cancel,start,finish,failed,confirm`; successful finish also requires numeric `finalCost`; customer confirmation requires current `priceVersion`. |
+| `POST /repairs/:id/schedules` | Assigned technician, or explicitly delegated customer; ISO `proposedStart,proposedEnd` with timezone. |
 | `POST /repairs/:id/schedules/:scheduleId/respond` | Other participant; `status`: `CONFIRMED` or `REJECTED`. |
 | `GET /repairs/:id/messages`, `POST /repairs/:id/messages` | Participants only; send `{body}`. |
 | `POST /repairs/:id/reviews` | Owning customer; integer `rating` 1–5 and `comment`. One review per successfully completed repair; failed or unconfirmed repairs are ineligible. |
@@ -115,3 +115,7 @@ Admin endpoints (Administrator only): GET /admin/users?q=&role=&active=&page=, P
 Booking requests support an optional UUID requestId; messages support an optional UUID messageId. Retries with the same identity and unchanged payload return the original record rather than creating duplicates. The frontend retains retry identifiers after connection failures.
 
 Authentication endpoints are throttled to 30 requests per IP per 15 minutes in the single-process deployment. JWT subjects and current active account roles are validated server-side. Request bodies are limited to 32 KiB, malformed JSON is handled without echoing its contents, and the database diagnostic endpoint requires an administrator.
+
+## Updated account, messaging, scheduling and pricing rules
+
+See [ACCOUNT_MESSAGING_SCHEDULING_UPDATE.md](ACCOUNT_MESSAGING_SCHEDULING_UPDATE.md) for migration instructions, new endpoints, test evidence and the updated demo. Personal details are edited under My Account/Account Settings; marketplace details remain on My Public Profile. Messages now has its own tab, with repair-specific shortcuts and no embedded chat in repair details. Only technicians propose schedules by default; delegation to a customer is explicit and persistent. Times are interpreted as Philippine local time. Final-price corrections are audited and require approval of the current priceVersion; existing payment records lock further corrections.

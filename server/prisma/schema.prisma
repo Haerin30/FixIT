@@ -143,6 +143,8 @@ model RepairRequest {
   serviceAddress      String
   status              RepairStatus   @default(PENDING)
   outcome             RepairOutcome?
+  customerCanProposeSchedule Boolean @default(false)
+  priceVersion        Int            @default(0)
   estimatedCost       Decimal?       @db.Decimal(10, 2)
   finalCost           Decimal?       @db.Decimal(10, 2)
   createdAt           DateTime       @default(now())
