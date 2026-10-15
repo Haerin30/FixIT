@@ -1,0 +1,74 @@
+.app-header { gap: 20px; position: relative; }
+.app-header > nav { margin-left: auto; }
+.account-menu { position: relative; flex-shrink: 0; }
+.account-trigger { border-radius: 50%; width: 44px; height: 44px; padding: 0; background: #e3efda; border: 2px solid #c1d9b9; color: #20583f; font-size: .95rem; letter-spacing: .02em; }
+.account-trigger:hover, .account-trigger[aria-expanded="true"] { background: #cee6c4; border-color: #578865; }
+.account-dropdown { position: absolute; z-index: 30; top: calc(100% + 13px); right: 0; width: min(310px,calc(100vw - 32px)); background: white; border: 1px solid #d6e2d4; border-radius: 14px; box-shadow: 0 18px 50px #163b3526; overflow: hidden; }
+.account-menu-identity { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 20px; border-bottom: 1px solid #e3eadd; overflow-wrap: anywhere; }
+.account-menu-identity > span { color: #647963; font-size: .82rem; }
+.account-dropdown [role="menu"] { padding: 7px; }
+.account-dropdown [role="menuitem"] { display: flex; justify-content: flex-start; width: 100%; min-height: 44px; text-align: left; border: 0; border-radius: 7px; font-size: .86rem; padding: 10px 14px; background: transparent; }
+.account-dropdown [role="menuitem"]:hover,.account-dropdown [role="menuitem"]:focus-visible { background: #edf5e8; }
+.account-dropdown .sign-out-item { color: #9e4131; border-top: 1px solid #e8ece3; margin-top: 5px; }
+.personal-account { max-width: 760px; }
+.personal-account-header { display: flex; gap: 18px; align-items: center; padding: 20px 0; border-bottom: 1px solid #e1e8dd; }
+.personal-account-header h2 { margin: 0 0 9px; }
+.personal-account fieldset { display: grid; gap: 18px; padding: 22px; }
+.personal-account input[readonly] { background: #f0f3ec; color: #63705e; }
+.account-profile-note { margin-top: 28px; }
+.account-profile-note p { margin: 7px 0 12px; font-size: .86rem; }
+.request-card-actions { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 16px; }
+.repair-item time { font-size: .75rem; color: #6b7c65; }
+.request-card-actions button { font-size: .76rem; padding: 9px 11px; min-height: 40px; flex: 1; }
+.repair-message-shortcut,.scheduling-panel,.final-price-editor { padding: 22px 0; border-top: 1px solid #e0e8db; margin-top: 22px; }
+.scheduling-panel form,.final-price-editor form { margin-top: 20px; }
+.scheduling-panel .section-head { flex-wrap: wrap; }
+.scheduling-panel .section-head h3 { margin: 0; }
+.scheduling-panel .schedule > p { font-size: .86rem; }
+.messages-workspace { display: grid; grid-template-columns: 330px minmax(0,1fr); min-height: 580px; border: 1px solid #d8e3d3; border-radius: 17px; overflow: hidden; background: white; box-shadow: 0 5px 28px #183c2f08; }
+.conversation-sidebar { border-right: 1px solid #dce5d6; background: #f8faf6; min-width: 0; padding: 20px 0; }
+.conversation-sidebar > h2 { padding: 0 20px; font-size: 1.15rem; margin: 0 0 20px; }
+.conversation-sidebar > .field-error { margin: 0 10px 15px; font-size: .8rem; }
+.conversation-sidebar > ul { list-style: none; padding: 0; margin: 0; max-height: 650px; overflow-y: auto; }
+.conversation-item { display: flex; align-items: flex-start; justify-content: flex-start; gap: 11px; text-align: left; border: 0; border-left: 3px solid transparent; width: 100%; border-radius: 0; padding: 17px 16px; background: transparent; min-height: 135px; }
+.conversation-item.selected { background: #e8f2e2; border-left-color: #1d8056; }
+.conversation-item:hover { background: #edf4e8; }
+.conversation-item .avatar { width: 39px; height: 39px; flex-shrink: 0; border-radius: 50%; font-size: .85rem; }
+.conversation-item-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+.conversation-item-copy > strong { font-size: .86rem; line-height: 1.35; }
+.conversation-item-copy > span { font-size: .77rem; font-weight: 400; }
+.conversation-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; color: #63765d; font-weight: 400; font-size: .73rem; }
+.conversation-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; justify-content: space-between; margin-top: 4px; }
+.conversation-meta .badge { font-size: .57rem; padding: 3px 6px; }
+.conversation-meta time { font-size: .6rem; color: #6c7d64; }
+.conversation-detail { padding: 24px; min-width: 0; }
+.conversation-header { display: flex; gap: 13px; align-items: center; border-bottom: 1px solid #e0e8d9; padding-bottom: 20px; flex-wrap: wrap; }
+.conversation-header > .avatar { flex-shrink: 0; border-radius: 50%; }
+.conversation-header > div:not(.avatar) { flex: 1; min-width: 120px; }
+.conversation-header h2 { font-size: 1.25rem; margin: 0 0 5px; }
+.conversation-header p { font-size: .83rem; margin: 3px 0 8px; }
+.conversation-header button { font-size: .8rem; }
+.conversation-detail .chat-panel { border: 0; padding: 0; margin-top: 24px; }
+.conversation-detail .chat-messages { max-height: 440px; min-height: 270px; }
+.conversation-placeholder { min-height: 500px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+.conversation-placeholder h2 { margin-bottom: 0; font-size: 1.6rem; }
+.back-conversations { display: none; }
+@media(max-width:900px) { .messages-workspace { grid-template-columns: 280px minmax(0,1fr); } .conversation-detail { padding: 20px; } }
+@media(max-width:700px) {
+  .app-header { display: grid; grid-template-columns: 1fr auto; gap: 16px; }
+  .app-header > .brand { grid-column: 1; grid-row: 1; justify-self: start; }
+  .app-header > .account-menu,.app-header > .primary { grid-column: 2; grid-row: 1; }
+  .app-header > nav { grid-column: 1 / -1; grid-row: 2; margin: 0; justify-content: flex-start; gap: 3px; }
+  .messages-workspace { display: block; min-height: 480px; }
+  .messages-workspace .conversation-detail { display: none; }
+  .messages-workspace.has-selection .conversation-sidebar { display: none; }
+  .messages-workspace.has-selection .conversation-detail { display: block; }
+  .conversation-sidebar { border-right: 0; }
+  .conversation-sidebar > ul { max-height: none; }
+  .conversation-item { min-height: 125px; }
+  .conversation-detail { padding: 18px; }
+  .back-conversations { display: inline-flex; margin-bottom: 15px; }
+  .conversation-detail .chat-messages { min-height: 240px; max-height: 50dvh; }
+  .personal-account fieldset { padding: 15px; }
+  .request-card-actions { gap: 8px; }
+}

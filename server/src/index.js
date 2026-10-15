@@ -31,6 +31,7 @@ app.use((req, res, next) => {
     next();
 });
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/account', require('./routes/account'));
 app.use('/api/payments', require('./routes/payments'));
 
 

@@ -18,7 +18,7 @@ test('successful repair validates amount and requires customer confirmation', ()
   for (const cost of [-1, NaN, Infinity, '500', .001]) assert.throws(() => transition(repair('IN_PROGRESS'), tech, 'finish', cost));
   assert.equal(transition(repair('IN_PROGRESS'), tech, 'finish', 500).status, 'AWAITING_CUSTOMER_CONFIRMATION');
   assert.throws(() => transition(repair('AWAITING_CUSTOMER_CONFIRMATION'), tech, 'confirm'));
-  assert.equal(transition(repair('AWAITING_CUSTOMER_CONFIRMATION'), customer, 'confirm').status, 'COMPLETED');
+  assert.equal(transition(repair('AWAITING_CUSTOMER_CONFIRMATION'), customer, 'confirm', undefined, 0).status, 'COMPLETED');
 });
 test('closed repairs cannot restart and cancellation stops after work starts', () => {
   for (const state of ['COMPLETED', 'FAILED', 'REJECTED', 'CANCELLED']) assert.throws(() => transition(repair(state), tech, 'start'));

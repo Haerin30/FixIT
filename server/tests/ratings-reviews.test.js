@@ -57,7 +57,7 @@ test('HTTP profiles, marketplace ratings, owner access and review updates share 
         const row = { ...data, id: 'new-review', status: 'COMPLETED', outcome: 'SUCCESSFUL' }; stored.push(row); return row;
       },
     },
-    $transaction: async fn => fn(db),
+    $transaction: async fn => fn(db), $executeRaw: async () => 0,
   };
   const prismaKey = require.resolve('../src/lib/prisma');
   require.cache[prismaKey] = { id: prismaKey, filename: prismaKey, loaded: true, exports: db };

@@ -9,8 +9,8 @@ let server;
 async function main() {
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const base = `http://127.0.0.1:${server.address().port}/api`;
-  async function request(path, token, body, expected = 200) {
-    const response = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  async function request(path, token, body, expected = 200, method = body ? 'POST' : 'GET') {
+    const response = await fetch(base + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     const json = await response.json(); assert.equal(response.status, expected, `${path}: ${json.message || response.status}`); return json.data;
   }
   const password = randomUUID();
@@ -24,6 +24,12 @@ async function main() {
     assert.equal((await request('/auth/me', logged.token)).role, role);
   }
   const [customer, tech, other] = accounts;
+  const account = await request('/account', customer.token);
+  assert.equal(account.id, customer.user.id); assert.ok(account.createdAt);
+  await request('/account', customer.token, { fname: 'QA Customer', lname: 'Test', phone: '+63 912 345 6789' }, 200, 'PATCH');
+  await request('/account', customer.token, { role: 'Administrator' }, 400, 'PATCH');
+  await request('/account', customer.token, { email: 'unauthorized@example.invalid' }, 400, 'PATCH');
+  assert.equal((await request('/account', customer.token)).phone, '+63 912 345 6789');
   await request('/auth/login', null, { email: customer.user.email, password: randomUUID() }, 401);
   await request('/auth/register', null, { fname: 'Duplicate', lname: 'Test', email: customer.user.email, password }, 409);
   assert.equal((await request('/profile', tech.token)).isAvailable, false);
@@ -41,6 +47,10 @@ async function main() {
     repairs.push(r.id); return r;
   }
   const r = await createRepair();
+  const inbox = await request('/conversations', customer.token);
+  assert.ok(inbox.conversations.some(c => c.repairId === r.id && c.participant.id === tech.user.id && c.lastMessage === null));
+  assert.equal((await request('/conversations', other.token)).conversations.length, 0);
+  await request(`/repairs/${r.id}`, other.token, undefined, 403);
   await request(`/repairs/${r.id}/reviews`, customer.token, { rating: 5, comment: 'Not completed yet' }, 409);
   await request(`/repairs/${r.id}/messages`, other.token, { body: 'Not my conversation' }, 403);
   await request(`/repairs/${r.id}/messages`, customer.token, { body: ' ' }, 400);
@@ -50,23 +60,53 @@ async function main() {
   await request(`/repairs/${r.id}/action`, customer.token, { action: 'accept' }, 409);
   await request(`/repairs/${r.id}/action`, tech.token, { action: 'accept' });
   await request(`/repairs/${r.id}/action`, tech.token, { action: 'start' }, 400);
+  const future = { proposedStart: new Date(Date.now()+86400000).toISOString(), proposedEnd: new Date(Date.now()+90000000).toISOString() };
+  await request(`/repairs/${r.id}/schedules`, customer.token, future, 403);
+  await request(`/repairs/${r.id}/scheduling-permission`, customer.token, { customerCanProposeSchedule: true }, 403, 'PATCH');
   const schedule = await request(`/repairs/${r.id}/schedules`, tech.token, { proposedStart: new Date(Date.now()+86400000).toISOString(), proposedEnd: new Date(Date.now()+90000000).toISOString() }, 201);
   await request(`/repairs/${r.id}/schedules/${schedule.id}/respond`, tech.token, { status: 'CONFIRMED' }, 409);
   await request(`/repairs/${r.id}/schedules/${schedule.id}/respond`, customer.token, { status: 'CONFIRMED' });
+  await request(`/repairs/${r.id}/scheduling-permission`, tech.token, { customerCanProposeSchedule: true }, 409, 'PATCH');
   await request(`/repairs/${r.id}/messages`, customer.token, { body: 'Test message' }, 201);
   assert.equal((await request(`/repairs/${r.id}/messages`, tech.token))[0].body, 'Test message');
   await request(`/repairs/${r.id}/action`, tech.token, { action: 'start' });
   await request(`/payments/${r.id}/checkout`, customer.token, {}, 409);
-  await request(`/repairs/${r.id}/action`, tech.token, { action: 'finish', finalCost: 500 });
-  await request(`/repairs/${r.id}/action`, customer.token, { action: 'confirm' });
+  const finished = await request(`/repairs/${r.id}/action`, tech.token, { action: 'finish', finalCost: 1500 });
+  const corrected = await request(`/repairs/${r.id}/final-price`, tech.token, { finalCost: 1200, priceVersion: finished.priceVersion }, 200, 'PATCH');
+  await request(`/repairs/${r.id}/action`, customer.token, { action: 'confirm', priceVersion: finished.priceVersion }, 409);
+  await request(`/repairs/${r.id}/action`, customer.token, { action: 'confirm', priceVersion: corrected.priceVersion });
+  const reopened = await request(`/repairs/${r.id}/final-price`, tech.token, { finalCost: 500, priceVersion: corrected.priceVersion }, 200, 'PATCH');
+  assert.equal(reopened.status,'AWAITING_CUSTOMER_CONFIRMATION');
+  await request(`/payments/${r.id}/checkout`, customer.token, {}, 409);
+  await request(`/repairs/${r.id}/action`, customer.token, { action: 'confirm', priceVersion: reopened.priceVersion });
+  const priceAudits = await prisma.auditLog.findMany({ where: { entityId: r.id, action: 'FINAL_PRICE_CORRECTED' } });
+  assert.equal(priceAudits.length,2);
+  assert.ok(priceAudits.some(a=>a.details.customerApprovalInvalidated));
+  console.log('PASS: account updates, authorized conversation metadata, default technician scheduling, audited price correction and stale/repeated confirmation protection.');
   if (!process.env.PAYMONGO_SECRET_KEY) await request(`/payments/${r.id}/checkout`, customer.token, {}, 503);
   if (process.argv.includes('--paymongo')) {
     assert.ok((process.env.PAYMONGO_SECRET_KEY || '').startsWith('sk_test_'), 'Configure a PayMongo test key first.');
     let checkout;
+    let currentPriceVersion = reopened.priceVersion;
     try {
+      const race = await Promise.all([
+        fetch(base + `/payments/${r.id}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${customer.token}` }, body: '{}' }),
+        fetch(base + `/repairs/${r.id}/final-price`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tech.token}` }, body: JSON.stringify({ finalCost: 450, priceVersion: currentPriceVersion }) }),
+      ]);
+      checkout = await prisma.payment.findUnique({ where: { repairRequestId: r.id } });
+      assert.deepEqual(race.map(response => response.status).sort(), [200,409]);
+      if (race[1].status === 200) {
+        const correctedAgain = (await race[1].json()).data;
+        await request(`/repairs/${r.id}/action`, customer.token, { action: 'confirm', priceVersion: correctedAgain.priceVersion });
+        const restored = await request(`/repairs/${r.id}/final-price`, tech.token, { finalCost: 500, priceVersion: correctedAgain.priceVersion }, 200, 'PATCH');
+        currentPriceVersion = restored.priceVersion;
+        await request(`/repairs/${r.id}/action`, customer.token, { action: 'confirm', priceVersion: currentPriceVersion });
+      }
+      console.log('PASS: concurrent checkout and final-price correction allow only one operation; customer approval cannot be bypassed.');
       assert.ok((await request(`/payments/${r.id}/checkout`, customer.token, {})).checkoutUrl);
       checkout = await prisma.payment.findUnique({ where: { repairRequestId: r.id } });
       assert.ok(checkout.providerCheckoutId);
+      await request(`/repairs/${r.id}/final-price`, tech.token, { finalCost: 450, priceVersion: currentPriceVersion }, 409, 'PATCH');
       assert.equal((await request(`/payments/${r.id}/verify`, customer.token, {})).status, 'PENDING');
       console.log('PASS: real application repair -> PayMongo test checkout -> persisted session -> server-side pending verification');
       const expiredResponse = await fetch(`https://api.paymongo.com/v1/checkout_sessions/${encodeURIComponent(checkout.providerCheckoutId)}/expire`, { method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${process.env.PAYMONGO_SECRET_KEY}:`).toString('base64')}` }, signal: AbortSignal.timeout(20000) });
@@ -97,6 +137,7 @@ async function main() {
   assert.equal(ratedProfile.rating.averageRating, 5); assert.equal(ratedProfile.rating.reviewCount, 1); assert.equal(ratedProfile.completedRepairs, 1);
   const failed = await createRepair();
   await request(`/repairs/${failed.id}/action`, tech.token, { action: 'accept' });
+  await request(`/repairs/${failed.id}/scheduling-permission`, tech.token, { customerCanProposeSchedule: true }, 200, 'PATCH');
   const s2 = await request(`/repairs/${failed.id}/schedules`, customer.token, { proposedStart: new Date(Date.now()+86400000).toISOString(), proposedEnd: new Date(Date.now()+90000000).toISOString() }, 201);
   await request(`/repairs/${failed.id}/schedules/${s2.id}/respond`, tech.token, { status: 'CONFIRMED' });
   await request(`/repairs/${failed.id}/action`, tech.token, { action: 'start' });
