@@ -1,121 +1,206 @@
 # FixIT computer repair marketplace
 
-React 19 / Vite client, Express 5 REST API, Prisma 6, and PostgreSQL. Work is on `feature/marketplace-deadline`. Existing schema and migration history are preserved; no database reset is needed.
+FixIT connects customers with computer repair technicians. It supports technician profiles, repair requests, scheduling, messages, final-price approval, reviews, administrator tools, and PayMongo test checkout.
 
-## Run locally
+The project uses React 19 and Vite in `client/`, Express 5 in `server/`, and Prisma 6 with PostgreSQL. The root `package.json` forwards commands to these two applications; it is not an npm workspace.
 
-Requires Node.js 22.13+ (verified on Node 24), npm, and PostgreSQL reachable through `DATABASE_URL`.
+## Windows PowerShell setup
 
-1. Install dependencies: `npm --prefix server install` and `npm --prefix client install`.
-2. For a new checkout, copy `server/.env.example` to `server/.env`, then enter your configuration. Do not overwrite an existing `.env`.
-3. From `server/`, run `npm run db:generate`. For a new database, run `npm run db:migrate` and `npm run db:seed`. These apply versioned migrations and upsert roles/categories; never run `prisma migrate reset` against the shared database. The current connected database is already migrated and seeded.
-4. From the repository root, run `npm run dev:server` in one terminal and `npm run dev:client` in another.
-5. Open http://localhost:5173. API: http://localhost:5000/api/health.
+### 1. Install prerequisites and clone
 
-The development client proxies `/api` to Express. `npm run build` builds `client/dist`; deploy that static bundle with `/api` reverse-proxied to Express, or configure `VITE_API_URL` at build time and set `CLIENT_URL` to the frontend origin. `vite preview` does not provide the development proxy.
+Install Git for Windows, Node.js **22.13 or later within Node 22** (the major version used by CI), and PostgreSQL, or obtain access to a team development PostgreSQL database. The committed client dependencies require at least Node 22.13 when using Node 22. Reopen PowerShell after installation.
 
-## Environment
+```powershell
+git --version
+node --version
+npm.cmd --version
 
-| Variable | Location | Purpose |
+git clone https://github.com/Haerin30/FixIT.git
+Set-Location .\FixIT
+```
+
+The examples use `npm.cmd` so PowerShell does not need to run the `npm.ps1` wrapper or change its execution policy. Use `npx.cmd` for the same reason.
+
+### 2. Install the client and server dependencies
+
+Run from the repository root:
+
+```powershell
+npm.cmd ci --prefix server
+npm.cmd ci --prefix client
+```
+
+Both applications have committed lockfiles. A root-only `npm install` does not install their dependencies.
+
+### 3. Create your local server configuration
+
+Run from the repository root. This preserves an existing local configuration:
+
+```powershell
+if (-not (Test-Path .\server\.env)) {
+    Copy-Item .\server\.env.example .\server\.env
+}
+notepad.exe .\server\.env
+```
+
+Replace the database username/password placeholders with your development database connection. Use the provider's required SSL parameters for a hosted database, and URL-encode special characters in connection credentials. Keep the configuration private.
+
+Generate a random JWT secret locally, then paste the output into `JWT_SECRET` in `server/.env`:
+
+```powershell
+$secretBytes = New-Object byte[] 32
+$secretGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try {
+    $secretGenerator.GetBytes($secretBytes)
+    [Convert]::ToBase64String($secretBytes)
+} finally {
+    $secretGenerator.Dispose()
+}
+```
+
+Do not paste this output into chat, screenshots, commits, or the example file. Leave `PAYMONGO_SECRET_KEY` empty until you need payment testing. No client environment file is required for the default local setup.
+
+### 4. Prepare the development database
+
+For a local PostgreSQL installation, create an empty database named `fixit` using pgAdmin or the SQL Shell before migrating. For a team database, confirm the correct development connection and coordinate migrations with the database owner.
+
+From the repository root:
+
+```powershell
+Push-Location .\server
+npm.cmd run db:generate
+npm.cmd run db:migrate
+npm.cmd run db:seed
+npm.cmd run db:check
+npx.cmd prisma migrate status
+Pop-Location
+```
+
+Run each command only after the previous one succeeds. `db:generate` creates Prisma Client; `db:migrate` applies pending committed migrations with `prisma migrate deploy`; `db:seed` upserts the three roles and repair categories. Seeding does not create login accounts. Existing migrations include the scheduling and price-version fields.
+
+Use these commands for an existing development database too, after coordinating with its owner. This README cannot establish whether your database is already migrated. Do not reset a shared database or delete migration history.
+
+### 5. Start both applications
+
+Open two PowerShell terminals, each at the cloned repository root.
+
+Terminal 1 — API:
+
+```powershell
+npm.cmd run dev:server
+```
+
+Terminal 2 — frontend:
+
+```powershell
+npm.cmd run dev:client
+```
+
+Open **http://localhost:5173**. In another terminal, verify the API:
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:5000/api/health
+```
+
+The response should contain `success: true` and `FixIT API is running`. This endpoint checks the HTTP server; use `npm.cmd run db:check` separately to check PostgreSQL. Stop each development server with Ctrl+C.
+
+Register separate Customer and Technician accounts through the UI. A technician must complete their profile, specialties, and service areas to be useful in the marketplace. There is no default administrator login.
+
+## Environment reference
+
+| Variable | File | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | `server/.env` | PostgreSQL connection URL; use your existing connection, including required SSL parameters. |
-| `JWT_SECRET` | `server/.env` | Long random server-only JWT signing secret. Tokens expire after one hour. |
-| `PORT` | `server/.env` | Express port, default `5000`. |
-| `CLIENT_URL` | `server/.env` | Exact client origin for CORS and PayMongo return URLs; default `http://localhost:5173`. |
-| `PAYMONGO_SECRET_KEY` | `server/.env` | PayMongo **test secret** beginning `sk_test_`. Live keys are rejected. Restart Express after changing this value. |
-| `VITE_API_URL` | optional `client/.env` | Public API base URL ending in `/api`. Omit for local development proxy. Never put secrets in `VITE_` variables. |
+| `DATABASE_URL` | `server/.env` | Required PostgreSQL URL used by Prisma and database scripts. |
+| `JWT_SECRET` | `server/.env` | Required private signing secret. Generate a random value; tokens expire after one hour. |
+| `PORT` | `server/.env` | API port; default `5000`. |
+| `CLIENT_URL` | `server/.env` | Exact frontend origin, without a trailing slash; used for CORS and checkout return URLs. Default `http://localhost:5173`. |
+| `PAYMONGO_SECRET_KEY` | `server/.env` | Optional PayMongo test secret. The API accepts only keys beginning with `sk_test_`. Missing configuration disables hosted checkout. |
+| `VITE_API_URL` | optional `client/.env` | Public API base URL ending in `/api`, without a trailing slash. Leave unset/empty for the development proxy. |
 
-`.env` files are ignored by Git. Never paste credentials into source, screenshots, issue comments, or chat.
+Restart Express after editing `server/.env`. Restart Vite after editing client environment variables; rebuild for production changes. Every `VITE_*` variable is public browser configuration: never put database, JWT, or PayMongo secrets there.
 
-## Demo workflow
+The development proxy in `client/vite.config.js` forwards `/api` to `http://localhost:5000`. If you change `PORT`, update that proxy or set `VITE_API_URL` to the new API origin plus `/api`. If the frontend uses another origin, update `CLIENT_URL` too.
 
-Three available demo technicians can be added with `npm run db:seed:demo` from `server/`. This additive command preserves existing accounts and can be rerun without duplication. Accounts: `alex.tech@fixit.example` (Cebu City; laptop/upgrades/recovery), `bea.tech@fixit.example` (Mandaue City; desktop/software/malware), and `carlo.tech@fixit.example` (Lapu-Lapu City; networking/printers/laptop). Their shared generated demo password is stored locally in Git-ignored `server/.env.demo` as `FIXIT_DEMO_PASSWORD`; use its value in the regular sign-in form. These are explicitly labeled demo profiles, without fabricated reviews.
+## Commands and checks
 
-1. Join as a technician. New technician accounts are unavailable until their profile is published. Set biography, specialties, experience, city/province, and check **Available for requests**.
-2. Sign out and join as a customer (or use a separate browser session). Browse/filter technicians and open a profile to request repair. A request must match one of that technician's specialties.
-3. Technician accepts or rejects the request. The technician proposes a future schedule unless they explicitly delegate that repair to the customer. The other participant must confirm it; a person cannot confirm their own proposal. Confirming a replacement cancels the other active schedules.
-4. Technician starts a repair after a schedule is confirmed. Mark unsuccessful to close it with a zero fee, or submit a successful outcome and final PHP amount for customer confirmation.
-5. Customer confirms success before payment is enabled. Use **Open test checkout**, complete PayMongo's hosted test flow, return to **My repairs**, select the repair, and use **Verify payment**. Return URL parameters never mark a repair paid.
-6. Customer can leave one review per successfully completed repair after confirming the outcome. Both participants can exchange messages, which update automatically about every four seconds.
+Run these from the repository root after installing dependencies:
 
-Customers can cancel requests before work starts. Administrator accounts are not available through public signup. An existing trusted Administrator account sees the administrator dashboard; role assignment must be performed by a trusted database operator. No default administrator password is created.
+```powershell
+npm.cmd test
+npm.cmd --prefix client test
+npm.cmd run lint
+npm.cmd run build
+```
 
-## Integrations
+The backend tests use isolated fixtures/mocks; the client tests use Node's test runner. The root `test` command runs only the backend suite. CI runs both suites, lint, the client build, and Prisma schema validation on Node 22.
 
-**PayMongo:** server-side hosted checkout creation and retrieval, using [PayMongo's Checkout Session API](https://docs.paymongo.com/reference/create_checkout_sessions) and [resource format](https://docs.paymongo.com/reference/checkout-session-resource). Prices come from the confirmed repair, converted to centavos. Existing sessions are reused under a PostgreSQL advisory lock. Verification checks a paid payment's test-mode flag, currency, and amount. Duplicate payment attempts and payment for unsuccessful/unconfirmed repairs are blocked. Card and GCash must be enabled for the test merchant. No card data passes through FixIT.
+Database-related checks:
 
-**Public REST API:** `/api/locations` retrieves Philippine city/municipality choices from the [public PSGC API](https://psgc.gitlab.io/api/), caches responses for 24 hours, and feeds the city suggestions. Requests time out after ten seconds. Manual city entry remains available if the provider fails. No customer address is sent to the location provider.
+```powershell
+npm.cmd run db:check
+Push-Location .\server
+npx.cmd prisma validate
+npx.cmd prisma migrate status
+npm.cmd run test:profiles
+Pop-Location
+```
 
-## API
+`db:check` queries roles; `test:profiles` compares existing profiles through a temporary local HTTP server and PostgreSQL without changing records. A fresh database with no profiles cannot exercise existing-profile comparisons.
 
-JSON responses use `{ data: ... }` for successful marketplace operations and `{ success: false, message }` for errors. Mutations generally require JSON bodies. Authentication uses `Authorization: Bearer <token>`; current active user/role is checked in PostgreSQL on each protected request.
+Optional integration tests use the configured development database and a temporary HTTP server; a separately running API is unnecessary:
 
-| Method and route (under `/api`) | Access / body |
-| --- | --- |
-| `POST /auth/register` | Public; `fname,lname,email,password,role` (`Customer` or `Technician` only). |
-| `POST /auth/login` | Public; `email,password`. |
-| `GET /auth/me` | Current authenticated user. |
-| `GET /categories`, `GET /locations` | Public lookup data. |
-| `GET /technicians` | Public; optional `category,city,province,page,limit`. |
-| `GET /technicians/:id` | Public profile, rating, and recent reviews. |
-| `GET /profile` | Technician's own full profile. |
-| `POST /technicians/profile`, `PUT /technicians/profile` | Technician only; profile fields, `categoryIds`, `serviceAreas:[{city,province}]`, `isAvailable`. |
-| `GET /repairs` | Own customer/assigned-technician requests, newest 100. |
-| `POST /repairs` | Customer; `technicianProfileId,repairCategoryId,title,description,deviceType,deviceModel?,serviceAddress`. |
-| `POST /repairs/:id/action` | Participant; `action`: `accept,reject,cancel,start,finish,failed,confirm`; successful finish also requires numeric `finalCost`; customer confirmation requires current `priceVersion`. |
-| `POST /repairs/:id/schedules` | Assigned technician, or explicitly delegated customer; ISO `proposedStart,proposedEnd` with timezone. |
-| `POST /repairs/:id/schedules/:scheduleId/respond` | Other participant; `status`: `CONFIRMED` or `REJECTED`. |
-| `GET /repairs/:id/messages`, `POST /repairs/:id/messages` | Participants only; send `{body}`. |
-| `POST /repairs/:id/reviews` | Owning customer; integer `rating` 1–5 and `comment`. One review per successfully completed repair; failed or unconfirmed repairs are ineligible. |
-| `POST /payments/:id/checkout` | Owning customer; server-priced confirmed successful repair only. |
-| `POST /payments/:id/verify` | Owning customer; verifies persisted checkout with PayMongo. |
-| `GET /admin/summary` | Administrator only; account/technician/repair totals, paid total, status breakdown. |
+```powershell
+npm.cmd run test:integration
+```
 
-## Verification
+This creates test users and repairs and attempts to remove the records created by that run. It also calls the public location service. Use a disposable development database; interrupted runs can leave test records.
 
-- `npm test`: nineteen isolated backend authorization and repair-state tests, no live server/database required.
-- `npm run test:integration`: real PostgreSQL/HTTP workflow tests. Creates random `example.invalid` users and repairs, then removes only the test records identified during that run. Does not reset the database. PayMongo paid-state simulations run only in the isolated in-memory test suite; the PostgreSQL integration run never inserts simulated PAID payments. The PSGC call is live.
-- From `server/`, `npm run test:paymongo`: creates, retrieves, and expires a real PHP 100 **test** checkout using your configured key. Does not make a payment or print credentials/checkout URLs.
-- From `server/`, `npm run test:integration:paymongo`: runs the entire repair lifecycle, creates a real hosted test checkout through the application payment endpoint, verifies its persisted pending status, expires it, then continues the remaining real database workflow checks. No payment is made.
-- `npm run db:check`: prints configuration presence and checks roles without printing credentials.
-- `npm run lint`, `npm run build`: client static analysis and production build.
-- From `server/`, `npx prisma validate` and `npx prisma migrate status`: schema validation and read-only migration check.
+For PayMongo test mode, privately configure `PAYMONGO_SECRET_KEY`, then optionally run:
 
-Verified in this session: PostgreSQL is connected; the existing migration is applied; both signup/login roles, technician browsing/profile updates, acceptance/rejection/cancellation, two-party schedules, status changes, zero-cost failed repairs, participant message access, one-review restriction, admin authorization, public location API, and mocked payment verification pass. The complete repair-to-PayMongo checkout flow created a real test checkout, persisted its session, verified pending status, and expired the checkout successfully. Client build/lint and eleven isolated backend tests pass.
+```powershell
+npm.cmd --prefix server run test:paymongo
+npm.cmd --prefix server run test:integration:paymongo
+```
 
-## Remaining limits
+These contact PayMongo to create/retrieve/expire test checkout sessions; they do not complete a payment. Card and GCash must be enabled for the test merchant. Browser payment completion is a separate manual check. Payment status is reconciled through polling/verification; no webhook worker is configured.
 
-- A completed hosted payment has not been exercised in a browser. Test checkout creation/retrieval is verified; paid/unpaid/mismatched amounts are verified against mocked provider responses.
-- Payment reconciliation uses automatic polling in the payment panel and **Verify payment**; no PayMongo webhook or background reconciliation worker is configured.
-- Browser tooling was unavailable in this environment, so visual/mobile layout and browser interaction tests remain manual.
-- Messaging polls automatically every four seconds; conversations show the latest 100 messages. No attachments or push notifications.
-- Admin management supports audited account activation/deactivation; payments remain read-only. Password reset, email verification, abuse/rate controls, disputes, and production payment rollout remain future work.
-- No deployment or Git push was performed. All work remains on the local feature branch.
+## Optional demo and administrator setup
 
-## Profile and review UX update
+`npm.cmd --prefix server run db:seed:demo` adds three demo technicians and stores their generated local password in the ignored `server/.env.demo` file. Existing accounts are preserved. Keep that file private; do not copy its contents into the README or commit it.
 
-Technicians now open their complete public-facing profile by default. A separate Edit Profile screen preserves multiple service areas and updates the displayed profile after saving. Owner and customer views reuse TechnicianProfile, Avatar, Rating, and marketplace card components. Profiles include biography, category-based skills, services, real review statistics, and successful completed-repair counts. Initials avatars are provided; photo uploads are not included.
+A trusted database operator can promote an existing active non-technician account after the Administrator role has been seeded. First register a separate account, then run from the repository root, replacing the example email with that account's email:
 
-Ratings and review feeds include only reviews attached to customer-confirmed COMPLETED/SUCCESSFUL repairs. Existing data is preserved, including historical reviews attached to other repair states; those ineligible reviews are excluded from public ratings and feedback. The unique repairRequestId constraint and serializable review creation prevent duplicate submissions. No schema migration is required.
+```powershell
+Push-Location .\server
+node .\scripts\provision-admin.js --email "trusted-account@example.invalid" --confirm
+Pop-Location
+```
 
-GET /profile now returns the same normalized profile data as GET /technicians/:id, including user, specialties, serviceAreas, rating, completedRepairs, reviews, and reviewPagination. GET /technicians/:id/reviews?page=1 pages feedback ten at a time. Paused profiles remain viewable by their owners and by direct public profile URLs; booking is disabled while unavailable.
+This changes the account's role and writes an audit record. It does not create or print a password. Coordinate administrator access with the group.
 
-Profile details refresh after saves, reviews, profile navigation, and browser focus. Marketplace cards refresh after reviews and when returning to the marketplace. Styling includes responsive statistic cards, review panels, SVG icons, fractional stars, focus indicators, skip navigation, loading states, accessible feedback, and reduced-motion support.
+## Troubleshooting
 
-Validation: npm --prefix server test runs 19 isolated backend tests, including HTTP rating/profile/review authorization checks. npm --prefix client test verifies rendered public/owner profiles, empty ratings, feedback escaping, and the separate editor. npm --prefix server run test:profiles runs read-only HTTP/PostgreSQL comparisons against existing accounts; it creates, updates, and deletes no records. Client lint and production build also pass. Browser visual/interaction verification remains manual because no browser surface is available.
+- **API refuses to start:** fill in `DATABASE_URL` and `JWT_SECRET` in `server/.env`; run through the documented root scripts or from `server/` so dotenv finds the file.
+- **Database connection fails:** ensure PostgreSQL is running, the database exists, the URL is correct, and any provider SSL/network requirements are met. Use `db:check` without sharing connection values.
+- **Missing tables, columns, or roles:** apply `db:migrate`, run `db:seed`, and regenerate Prisma Client as shown above.
+- **Frontend cannot reach the API:** start both terminals and check the health URL. The default Vite proxy expects port 5000.
+- **Vite chooses a different port:** free port 5173 or set `CLIENT_URL` to the exact origin Vite reports and restart Express.
+- **Checkout unavailable:** use a private PayMongo test secret and restart Express. Live keys are rejected.
+- **PowerShell blocks npm:** use the `npm.cmd` / `npx.cmd` commands above.
 
-## Final QA release
+## Build and deployment
 
-See [DEMO.md](DEMO.md) for the full customer/technician/admin walkthrough, safe admin provisioning, test commands, and manual hosted-payment requirements. See [FINAL_QA_REPORT.md](FINAL_QA_REPORT.md) for the final evidence and remaining limitations.
+`npm.cmd run build` produces `client/dist/`. Express starts with `npm.cmd --prefix server start`. The build is only the frontend; Express does not serve that output. Host the static files with `/api` reverse-proxied to Express, or set `VITE_API_URL` at build time and configure `CLIENT_URL` for the deployed frontend. The `vite preview` command does not provide the configured development proxy.
 
-Payment endpoints now include POST /payments/:id/cancel. PayMongo-confirmed expired sessions can be safely replaced; active sessions are reused. Each session creation/replacement/cancellation is preserved in AuditLog. Verification checks session ID, repair reference, PHP amount, test mode and payment intent/payment IDs. No redirect URL or admin mutation can mark a payment paid.
+## Repository and collaboration
 
-Admin endpoints (Administrator only): GET /admin/users?q=&role=&active=&page=, PATCH /admin/users/:id/active with a boolean isActive, GET /admin/technicians/:id, GET /admin/repairs?status=&page=, and GET /admin/payments?status=&page=. Mutations preserve history and create audit events; self-deactivation and administrator moderation are rejected.
+- `client/`: React UI, API helper, Vite configuration, and frontend tests.
+- `server/src/`: Express routes, middleware, and business rules.
+- `server/prisma/`: PostgreSQL schema, committed migrations, and reference-data seed.
+- `server/scripts/`: database, integration, demo, and administrator tools.
+- [.github/workflows/quality.yml](.github/workflows/quality.yml): automated checks.
+- [DEMO.md](DEMO.md): detailed demonstration walkthrough.
+- [ACCOUNT_MESSAGING_SCHEDULING_UPDATE.md](ACCOUNT_MESSAGING_SCHEDULING_UPDATE.md): account, messaging, scheduling, and pricing details.
+- [FINAL_QA_REPORT.md](FINAL_QA_REPORT.md): historical QA evidence and limitations; it is not proof of checks on your current machine.
 
-Booking requests support an optional UUID requestId; messages support an optional UUID messageId. Retries with the same identity and unchanged payload return the original record rather than creating duplicates. The frontend retains retry identifiers after connection failures.
-
-Authentication endpoints are throttled to 30 requests per IP per 15 minutes in the single-process deployment. JWT subjects and current active account roles are validated server-side. Request bodies are limited to 32 KiB, malformed JSON is handled without echoing its contents, and the database diagnostic endpoint requires an administrator.
-
-## Updated account, messaging, scheduling and pricing rules
-
-See [ACCOUNT_MESSAGING_SCHEDULING_UPDATE.md](ACCOUNT_MESSAGING_SCHEDULING_UPDATE.md) for migration instructions, new endpoints, test evidence and the updated demo. Personal details are edited under My Account/Account Settings; marketplace details remain on My Public Profile. Messages now has its own tab, with repair-specific shortcuts and no embedded chat in repair details. Only technicians propose schedules by default; delegation to a customer is explicit and persistent. Times are interpreted as Philippine local time. Final-price corrections are audited and require approval of the current priceVersion; existing payment records lock further corrections.
+Create a feature branch for your work and open a pull request into `main`. Review `git status` and the staged diff before committing. The root `.gitignore` excludes local environment files (including `.env.demo`), dependencies, build output, coverage, and logs while allowing `.env.example` templates. Ignore rules do not remove already tracked secrets; never stage real credentials. If a credential was exposed, revoke/rotate it with the provider and coordinate repository cleanup.
