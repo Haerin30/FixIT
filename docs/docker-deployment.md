@@ -2,7 +2,33 @@
 
 This is a deployment plan and container configuration, not a deployed application. Do not publish images, provision a host, change DNS, apply migrations to Supabase, or configure live credentials until the hosting environment is selected and approved. PayMongo remains in Sandbox even when the application runs with `NODE_ENV=production`.
 
-The Docker PR is stacked on `feature/password-recovery`. Merge/review that feature first, then retarget this PR to `main` before its eventual merge. No merging is performed by this preparation work.
+Password recovery and the initial production Docker configuration are already included in `main` through PRs #5 and #7. The local Docker setup is a separate follow-up change targeting `main`. No merge or public deployment is performed by this preparation work.
+
+## Local Docker on Windows / Docker Desktop
+
+Use the standalone **`compose.local.yaml`** for local testing. It uses the existing Supabase database and Mailtrap Sandbox settings in `server/.env`, without changing that file. It has no database or migration service. Do **not** combine it with production `compose.yaml` using multiple `-f` arguments. Both files use the `fixit` project name so switching configurations recreates only the same two FixIT services; do not run both modes simultaneously.
+
+```powershell
+# Needed only if this terminal has not picked up Docker Desktop's PATH yet.
+$env:PATH = 'C:\Program Files\Docker\Docker\resources\bin;' + $env:PATH
+docker compose -f compose.local.yaml config --quiet
+docker compose -f compose.local.yaml build
+docker compose -f compose.local.yaml up -d --no-build --wait --wait-timeout 90 server client
+docker compose -f compose.local.yaml ps
+curl.exe --fail http://localhost:8080/
+curl.exe --fail http://localhost:8080/api/health
+docker compose -f compose.local.yaml logs --tail 30 server client
+```
+
+Open **http://localhost:8080**. The local backend sets `CLIENT_URL=http://localhost:8080`, `NODE_ENV=development`, and the existing `FIXIT_CONTAINER=false` switch; only production-specific startup validation is disabled. A separate `FIXIT_LOCAL_CONTAINER=true` guard requires that exact localhost URL, development mode, Mailtrap's `sandbox.smtp.mailtrap.io` host, encrypted SMTP, and PayMongo test credentials if configured. Normal authentication, token expiry/single-use rules, session revocation and rate limits still apply. The production validator is unchanged and still rejects HTTP and sandbox delivery for deployment.
+
+Local safeguards: the frontend port is fixed to **127.0.0.1:8080**, the backend has no published port, and a local-only Nginx config rejects public-domain Host headers. Nginx ignores caller-supplied forwarding headers. Do not expose this setup through a public reverse proxy, tunnel or a modified port binding. Use the separate production configuration for an approved public deployment.
+
+The local Compose file and `client/nginx.local.conf` contain no secrets or machine-specific credentials and can be reviewed in Git. The Nginx file is mounted read-only and excluded from the client image build context. All existing secrets are injected from the ignored `server/.env` only at runtime. Optional machine-specific `/compose.local.override.yaml` is ignored by Git; never put credentials in the shareable template. Use `config --quiet`, not expanded Compose output, which can reveal resolved environment values.
+
+Mailtrap Sandbox captures reset messages in its private **Email Testing** inbox instead of delivering them to real users. A manually requested reset will generate a localhost link. Opening that link and submitting a new password **changes the existing account password and revokes its sessions**; do this only for an account whose password you intend to change. Startup verification does not require resetting any account. Ordinary non-Docker development remains `npm run dev:server` / `npm run dev:client`, using the unchanged development environment file and Vite port 5173.
+
+There is no automatic migration or seeding. If database/schema checks fail, stop and review the database and approved migration plan. Do not reset or reseed Supabase to fix Docker startup. To stop only this local stack, use `docker compose -f compose.local.yaml stop server client`.
 
 ## Recommended host and sizing
 
@@ -57,7 +83,7 @@ export FIXIT_IMAGE_TAG=$(git rev-parse --short HEAD)
 export FIXIT_HTTP_PORT=8080
 ```
 
-For local Docker verification use separate ignored test configuration files and a controlled test database/mail service. Container production checks intentionally reject the ordinary development HTTP `CLIENT_URL`; an HTTPS test origin and real delivery SMTP settings are needed for the complete container flow. No production credentials are required merely to build images. Compose still needs its referenced env files to exist when parsing configuration.
+For local HTTP/Mailtrap testing use the standalone local configuration documented above. The production configuration still requires an HTTPS origin and a real delivery SMTP provider. No production credentials are required merely to build images. Compose still needs its referenced env files to exist when parsing configuration.
 
 ## Build, inspect and start (after approval)
 
@@ -126,8 +152,10 @@ To roll back application code, check out the previous approved commit, set `FIXI
 
 Pending recovery emails are in memory and can be lost during a restart; users can request another link after the rate window. Monitor fixed SMTP failure messages and verify delivery after updates. A durable encrypted delivery queue remains a future reliability improvement.
 
-## Verification on the preparation workstation
+## Local Docker verification
 
-Docker CLI/Engine is not installed or available on PATH here. Container image builds, Nginx runtime syntax, container startup, Linux Prisma loading, and proxied HTTP checks are therefore **unverified** and must pass on a Docker-capable review machine before approval. No images have been published and there is no live deployment URL. Repository regression and configuration tests are reported in the PR; they do not substitute for these container checks.
+Docker Desktop Engine 29.9.1 / Compose v5.6.0 are now available on the Windows workstation. The local backend image built successfully, and both containers reached healthy status. Nginx runtime syntax passed. The frontend, `/api/health`, `/healthz`, `/forgot-password` and `/reset-password` returned HTTP 200 via localhost:8080; a public-domain Host header returned 403. Linux Prisma connected to the existing Supabase database in a read-only transaction, and the session-version/reset security schema was present. Mailtrap SMTP authentication succeeded with TLS without sending an email. Image metadata contained no credential environment keys, and `/app/.env` was absent from the running server.
 
-Actual preparation checks: 32 backend tests and 7 frontend tests passed; lint, Vite production build, Prisma validation, Compose YAML parsing and Git whitespace checks passed. A separate local Node process started with isolated production-shaped placeholder settings and returned a successful `/api/health` response without connecting to a database or SMTP service. This was a Windows Node check, not a Docker/Node 22/Linux runtime check. No Supabase migration, real checkout, or production email was attempted.
+Regression: 34 backend tests and 7 frontend tests passed, along with lint, Vite production build and Prisma validation. A separate temporary non-Docker Express/Vite smoke check passed for the development page, React module and API proxy. No migrations, seeding, password changes, payment requests or production email were performed. Public HTTPS deployment and actual checkout/email-reset completion remain separate acceptance checks; this result establishes **local readiness**, not public deployment readiness.
+
+Read-only aggregate snapshots taken during verification showed identical row counts and content fingerprints afterward for `User`, `RepairRequest`, `Message` and `Payment`. No record contents or credentials were printed. The local source/configuration scan found no environment secret values, and the production Compose, production validator and production Nginx configuration remained unchanged.
