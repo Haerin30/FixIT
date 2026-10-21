@@ -1,0 +1,20 @@
+# Allowlist: local credentials, caches, tests and .git never enter the context.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!package-lock.json
+!index.html
+!vite.config.js
+!nginx.conf
+!public/
+!public/**
+!src/
+!src/**
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*credentials*
+**/*secret*
+**/*.log

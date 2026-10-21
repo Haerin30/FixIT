@@ -5,6 +5,9 @@ const express = require("express");
 const cors = require("cors");
 
 const app = express();
+const { validateContainerEnv, configureTrustedProxy } = require('./lib/container-config');
+if (process.env.FIXIT_CONTAINER === 'true') validateContainerEnv(process.env);
+configureTrustedProxy(app, process.env.TRUST_PROXY);
 const PORT = process.env.PORT || 5000;
 const prisma = require("./lib/prisma");
 const authRoutes = require("./routes/auth");
