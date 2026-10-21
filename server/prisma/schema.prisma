@@ -51,6 +51,7 @@ model User {
   lname        String
   email        String   @unique
   passwordHash String
+  sessionVersion Int @default(0)
   phone        String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -63,9 +64,29 @@ model User {
   reviewsWritten    Review[]           @relation("CustomerReviews")
   messages          Message[]
   auditLogs         AuditLog[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([roleId])
   @@index([lname, fname])
+}
+
+model PasswordResetToken {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetRateLimit {
+  key String @id
+  count Int
+  expiresAt DateTime
+  @@index([expiresAt])
 }
 
 model TechnicianProfile {
