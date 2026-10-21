@@ -31,6 +31,7 @@ async function authenticateToken(req, res, next) {
                 lname: true,
                 email: true,
                 isActive: true,
+                sessionVersion: true,
                 role: {
                     select: {
                         name: true,
@@ -47,6 +48,10 @@ async function authenticateToken(req, res, next) {
         }
 
         // Attach verified user information to the request.
+        // Legacy JWTs are version zero, accepted only until the first reset.
+        if (!Number.isInteger(decoded.sv ?? 0) || (decoded.sv ?? 0) !== (user.sessionVersion ?? 0)) {
+            return res.status(401).json({ success: false, message: 'Your session has expired. Please log in again.' });
+        }
         req.user = {
             id: user.id,
             fname: user.fname,

@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const prisma = require("../lib/prisma");
 
 const router = express.Router();
+router.use(require('./password-reset').resetRouter());
 
 const TOKEN_EXPIRY = "1h";
 const { rateLimit } = require('../middleware/rate-limit');
@@ -113,6 +114,7 @@ router.post("/register", async (req, res) => {
         const token = jwt.sign(
             {
                 role: user.role.name,
+                sv: 0,
             },
             process.env.JWT_SECRET,
             {
@@ -195,6 +197,7 @@ router.post("/login", async (req, res) => {
         const token = jwt.sign(
             {
                 role: user.role.name,
+                sv: user.sessionVersion ?? 0,
             },
             process.env.JWT_SECRET,
             {

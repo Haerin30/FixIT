@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "test": "node --test tests/**/*.test.js",
     "test:integration": "node scripts/smoke.js",
+    "test:integration:reset": "node scripts/test-password-reset.js",
     "test:integration:paymongo": "node scripts/smoke.js --paymongo",
     "test:paymongo": "node scripts/check-paymongo.js",
     "db:check": "node scripts/check-db.js",
@@ -30,7 +31,8 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.8",
     "express": "^5.3.0",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "10.1.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
