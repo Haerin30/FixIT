@@ -1,0 +1,21 @@
+# Allowlist: no local environment, generated Windows engines, logs or fixtures.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!package-lock.json
+!prisma.config.ts
+!prisma/
+!prisma/schema.prisma
+!prisma/migrations/
+!prisma/migrations/**
+!src/
+!src/**
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*credentials*
+**/*secret*
+**/*.log
+src/generated/
