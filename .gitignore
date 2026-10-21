@@ -6,6 +6,9 @@ node_modules/
 .env.*
 !.env.example
 
+# Optional private machine overrides; the safe compose.local.yaml is shareable.
+/compose.local.override.yaml
+
 # Build and test output
 dist/
 dist-ssr/
